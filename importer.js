@@ -28,10 +28,19 @@ const config = (() => {
 	}
 })();
 
-if (config.id != 'aid') {
-	console.error('Id format must be "aid".');
-	process.exit(1);
-}
+const createdAtQuery = (() => {
+	switch (config.id) {
+		case 'aid':
+			return 'base36_decode(substring(id, 1, 8)) + 946684800000 AS "createdAt"';
+		case 'meid':
+			return '(\'x\' || lpad(substring(id, 1, 12), 16, \'0\'))::bit(64)::bigint - 140737488355328 AS "createdAt"'
+		case 'object-id':
+			return '(\'x\' || lpad(substring(id,1,8), 16, \'0\'))::bit(64)::bigint * 1000 AS "createdAt"'
+		default:
+			console.error(`Id format "${config.id}" is not supported.`);
+			process.exit(1);
+	}
+})();
 
 if (!config.meilisearch) {
 	console.error("Meilisearch settings are not enabled.");
@@ -110,7 +119,7 @@ const importNotes = async (connection, id) => {
 			.orderBy('id', 'DESC')
 			.andWhere(lastId ? 'id < :id' : 'true')
 			.setParameter('id', lastId)
-			.select(['id', 'base36_decode(substring(id, 1, 8))+946684800000 AS "createdAt"', '"userHost"', '"channelId"', 'cw', 'text', 'tags'])
+			.select(['id', createdAtQuery, '"userHost"', '"channelId"', 'cw', 'text', 'tags'])
 			.take(options.batchSize)
 			.getRawMany();
 
